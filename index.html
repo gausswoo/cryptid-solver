@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>神秘生物 (Cryptid) 邏輯推導引擎</title>
+    <style>
+:root {
+        --bg: #121212;
+        --card: #1e1e1e;
+        --text: #e0e0e0;
+        --cube-active: #ff5252;
+        --disk-active: #4caf50;
+        --f: #2d5a27;
+        --d: #f4d03f;
+        --w: #3498db;
+        --s: #7d3c98;
+        --m: #7f8c8d;
+    }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            margin: 0;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 850px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* 頂部功能列 */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+        }
+        .lang-btn {
+            background: #00e5ff;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* 玩家標籤 */
+        .player-tabs {
+            display: flex;
+            justify-content: space-between;
+            background: var(--card);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .tab-btn {
+            flex: 1;
+            background: #252525;
+            border: 2px solid transparent;
+            color: white;
+            padding: 12px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            border-radius: 6px;
+            margin: 0 3px;
+            font-weight: bold;
+        }
+        .tab-btn.active {
+            border-color: #00e5ff;
+            color: #00e5ff;
+            background: #2a2a2a;
+            box-shadow: 0 0 10px rgba(0,229,255,0.2);
+        }
+
+        /* 面板設置 */
+        .dashboard {
+            background: var(--card);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            display: grid;
+            grid-template-columns: 100px repeat(6, 1fr);
+            gap: 12px;
+            align-items: center;
+        }
+        .section-header {
+            grid-column: 1 / -1;
+            font-size: 0.85rem;
+            color: #00e5ff;
+            border-bottom: 1px solid #333;
+            margin-top: 15px;
+            padding-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .row-label {
+            font-size: 0.75rem;
+            text-align: right;
+            line-height: 1.4;
+            color: #888;
+            font-weight: bold;
+        }
+
+        .btn-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .piece {
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+            background: #333;
+            color: #222;
+            font-size: 24px;
+            border: 2px solid #444;
+        }
+        .c-sq {
+            border-radius: 6px;
+        }
+        .d-rd {
+            border-radius: 50%;
+        }
+
+        .c-sq.active {
+            background: var(--cube-active);
+            color: white;
+            border-color: white;
+            box-shadow: 0 0 12px var(--cube-active);
+        }
+        .d-rd.active {
+            background: var(--disk-active);
+            color: white;
+            border-color: white;
+            box-shadow: 0 0 12px var(--disk-active);
+        }
+
+        .label {
+            font-size: 0.7rem;
+            color: #bbb;
+            margin-top: 4px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .adv-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--card);
+            border-radius: 8px;
+            border: 1px solid #333;
+            font-weight: bold;
+            flex-grow: 1;
+        }
+
+        /* 線索輸出 */
+        .status {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00e5ff;
+            margin: 10px 0;
+        }
+        .clue-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .clue-card {
+            background: #252525;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            border-left: 5px solid #444;
+            line-height: 1.4;
+        }
+
+        /* 標籤底部色彩 */
+        .f {
+            border-bottom: 3px solid var(--f);
+        }
+
+        .d {
+            border-bottom: 3px solid var(--d);
+        }
+        .w {
+            border-bottom: 3px solid var(--w);
+        }
+
+        .s {
+            border-bottom: 3px solid var(--s);
+        }
+        .m {
+            border-bottom: 3px solid var(--m);
+        }
+
+        .anim {
+            border-bottom: 3px solid #e67e22;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="top-bar">
+            <div class="adv-row">
+                <span id="txt-adv">進階模式 (包含「不在」線索)</span>
+                <input type="checkbox" id="advMode" onchange="updateLogic()" style="transform: scale(1.5);">
+            </div>
+            <button class="lang-btn" onclick="toggleLang()" id="langBtn">English</button>
+        </div>
+
+        <div class="player-tabs">
+            <button class="tab-btn active" onclick="switchPlayer('P1')">α</button>
+            <button class="tab-btn" onclick="switchPlayer('P2')">β</button>
+            <button class="tab-btn" onclick="switchPlayer('P3')">γ</button>
+            <button class="tab-btn" onclick="switchPlayer('P4')">δ</button>
+            <button class="tab-btn" onclick="switchPlayer('P5')">ε</button>
+        </div>
+
+        <div class="dashboard" id="mainUI"></div>
+
+        <div class="status" id="counter">
+            計算中...
+        </div>
+        <div class="clue-grid" id="clueGrid"></div>
+    </div>
+
+    <script>
+        let currentLang = 'tw'; // 預設為繁體中文
+        const dict = {
+            en: {
+                adv: "ADVANCED MODE",
+                cube: "CUBE (NOT)",
+                disk: "DISK (MAYBE)",
+                count: "Possible Clues",
+                terrain: "1. Terrain Type",
+                dist1: "2. Within 1 Space",
+                dist2: "3. Within 2 Spaces",
+                dist3: "4. Within 3 Spaces",
+                f: "Forest",
+                d: "Desert",
+                w: "Water",
+                s: "Swamp",
+                m: "Mtn",
+                a: "Animal",
+                st: "Stone",
+                sh: "Shack",
+                b: "Bear",
+                c: "Cougar",
+                blue: "Blue",
+                white: "White",
+                green: "Green",
+                black: "Black",
+                on: "On",
+                notOn: "NOT on",
+                within: "Within",
+                notWithin: "NOT within",
+                of: "of",
+                or: "or",
+                suffix: ""
+            },
+            tw: {
+                adv: "進階模式 (包含「不在」)",
+                cube: "方塊 (不在)",
+                disk: "圓盤 (可能在)",
+                count: "剩餘可能線索",
+                terrain: "1. 地形類型",
+                dist1: "2. 1格距離內",
+                dist2: "3. 2格距離內",
+                dist3: "4. 3格距離內",
+                f: "森林",
+                d: "沙漠",
+                w: "水域",
+                s: "沼澤",
+                m: "山脈",
+                a: "動物領地",
+                st: "石碑",
+                sh: "木屋",
+                b: "熊",
+                c: "美洲獅",
+                blue: "藍色",
+                white: "白色",
+                green: "綠色",
+                black: "黑色",
+                on: "在",
+                notOn: "不在",
+                within: "在",
+                notWithin: "不在",
+                of: "的",
+                or: "或",
+                suffix: "距離內"
+            }
+        };
+
+        const config = [{
+            cat: "terrain",
+            items: [{
+                id: 'tf',
+                n: 'f',
+                c: 'f'
+            },
+                {
+                    id: 'td',
+                    n: 'd',
+                    c: 'd'
+                },
+                {
+                    id: 'tw',
+                    n: 'w',
+                    c: 'w'
+                },
+                {
+                    id: 'ts',
+                    n: 's',
+                    c: 's'
+                },
+                {
+                    id: 'tm',
+                    n: 'm',
+                    c: 'm'
+                }]},
+            {
+                cat: "dist1",
+                items: [{
+                    id: 'd1f',
+                    n: 'f',
+                    c: 'f'
+                },
+                    {
+                        id: 'd1d',
+                        n: 'd',
+                        c: 'd'
+                    },
+                    {
+                        id: 'd1w',
+                        n: 'w',
+                        c: 'w'
+                    },
+                    {
+                        id: 'd1s',
+                        n: 's',
+                        c: 's'
+                    },
+                    {
+                        id: 'd1m',
+                        n: 'm',
+                        c: 'm'
+                    },
+                    {
+                        id: 'd1a',
+                        n: 'a',
+                        c: 'anim'
+                    }]},
+            {
+                cat: "dist2",
+                items: [{
+                    id: 'd2st',
+                    n: 'st'
+                },
+                    {
+                        id: 'd2sh',
+                        n: 'sh'
+                    },
+                    {
+                        id: 'd2b',
+                        n: 'b'
+                    },
+                    {
+                        id: 'd2c',
+                        n: 'c'
+                    }]},
+            {
+                cat: "dist3",
+                items: [{
+                    id: 'd3bl',
+                    n: 'blue'
+                },
+                    {
+                        id: 'd3wh',
+                        n: 'white'
+                    },
+                    {
+                        id: 'd3gr',
+                        n: 'green'
+                    },
+                    {
+                        id: 'd3bk',
+                        n: 'black'
+                    }]}];
+
+        let playerStates = {
+            P1: {},
+            P2: {},
+            P3: {},
+            P4: {},
+            P5: {}
+        };
+        let currentPlayer = 'P1';
+
+        function toggleLang() {
+            currentLang = currentLang === 'tw' ? 'en': 'tw';
+            document.getElementById('langBtn').innerText = currentLang === 'tw' ? 'English': '中文';
+            document.getElementById('txt-adv').innerText = dict[currentLang].adv;
+            renderUI();
+            updateLogic();
+        }
+
+        function renderUI() {
+            const ui = document.getElementById('mainUI');
+            ui.innerHTML = '';
+            const d = dict[currentLang];
+            config.forEach(group => {
+                ui.innerHTML += `<div class="section-header">${d[group.cat]}</div><div class="row-label">${d.cube}<br><br>${d.disk}</div>`;
+                group.items.forEach(item => {
+                    ui.innerHTML += `
+                    <div class="btn-stack">
+                    <div id="cube-${item.id}" class="piece c-sq" onclick="toggle('${item.id}','cube')">■</div>
+                    <div id="disk-${item.id}" class="piece d-rd" onclick="toggle('${item.id}','disk')">●</div>
+                    <div class="label ${item.c || ''}">${d[item.n]}</div>
+                    </div>`;
+                });
+                for (let i = group.items.length; i < 6; i++) ui.innerHTML += `<div></div>`;
+            });
+        }
+
+        function toggle(id, type) {
+            const key = `${type}-${id}`;
+            playerStates[currentPlayer][key] = !playerStates[currentPlayer][key];
+            updateLogic();
+        }
+
+        function switchPlayer(p) {
+            currentPlayer = p;
+            const playerLabels = {
+                P1: 'α', P2: 'β', P3: 'γ', P4: 'δ', P5: 'ε'
+            };
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.innerText === playerLabels[p]));
+            updateLogic();
+        }
+
+        function updateLogic() {
+            const state = playerStates[currentPlayer];
+            const isAdv = document.getElementById('advMode').checked;
+            const grid = document.getElementById('clueGrid');
+            const d = dict[currentLang];
+            grid.innerHTML = '';
+            let count = 0;
+
+            document.querySelectorAll('.piece').forEach(p => p.classList.toggle('active', !!state[p.id]));
+
+            let clues = [];
+            // 1. 地形線索
+            const t = config[0].items;
+            for (let i = 0; i < t.length; i++) for (let j = i+1; j < t.length; j++) {
+                const txtP = currentLang === 'en' ? `On ${d[t[i].n]} or ${d[t[j].n]}`: `${d.on}${d[t[i].n]}${d.or}${d[t[j].n]}`;
+                const txtN = currentLang === 'en' ? `NOT on ${d[t[i].n]} or ${d[t[j].n]}`: `${d.notOn}${d[t[i].n]}${d.or}${d[t[j].n]}`;
+                clues.push({
+                    text: txtP, type: 'pos', targets: [t[i].id, t[j].id]
+                });
+                clues.push({
+                    text: txtN, type: 'neg', targets: [t[i].id, t[j].id]
+                });
+            }
+
+            // 2. 距離線索
+            config.slice(1).forEach(row => row.items.forEach(item => {
+                const num = row.cat.at(-1);
+                const txtP = currentLang === 'en' ? `Within ${num} of ${d[item.n]}`: `${d.within}${d[item.n]}的 ${num} 格${d.suffix}`;
+                const txtN = currentLang === 'en' ? `NOT within ${num} of ${d[item.n]}`: `${d.notWithin}${d[item.n]}的 ${num} 格${d.suffix}`;
+                clues.push({
+                    text: txtP, type: 'pos', targets: [item.id]
+                });
+                clues.push({
+                    text: txtN, type: 'neg', targets: [item.id]
+                });
+            }));
+
+            clues.forEach(clue => {
+                if (!isAdv && clue.type === 'neg') return;
+                let eliminated = false;
+                clue.targets.forEach(tid => {
+                    if (state[`cube-${tid}`] && clue.type === 'pos') eliminated = true;
+                    if (state[`disk-${tid}`] && clue.type === 'neg') eliminated = true;
+                });
+
+                if (!eliminated) {
+                    count++;
+                    grid.innerHTML += `<div class="clue-card" style="border-left-color:${clue.type === 'pos'?'var(--disk-active)': 'var(--cube-active)'}">${clue.text}</div>`;
+                }
+            });
+
+            document.getElementById('counter').innerText = `${d.count}: ${count}`;
+        }
+
+        renderUI();
+        updateLogic();
+    </script>
+</body>
+</html>
